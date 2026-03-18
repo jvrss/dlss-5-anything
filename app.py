@@ -173,7 +173,7 @@ def process(
 css = """
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
-.gradio-container { background: #0a0a0a !important; max-width: 1100px !important; }
+.gradio-container { background: #0a0a0a !important; max-width: 1100px !important; margin: 0 auto !important; padding-top: 30px !important; }
 #input-img { max-height: 300px; }
 #input-img img { max-height: 300px; object-fit: contain; }
 #output-img { min-height: 400px; }
