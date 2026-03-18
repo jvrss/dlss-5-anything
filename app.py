@@ -311,17 +311,18 @@ css = """
 .main-title h1 {
     text-align: center;
     font-family: 'Press Start 2P', monospace !important;
-    color: #76B900 !important;
+    color: #9aff00 !important;
     font-size: 2.2em !important;
-    text-shadow: 0 0 10px #76B900, 0 0 30px #76B90066;
+    text-shadow: 0 0 15px #9aff00, 0 0 40px #76B900, 0 0 80px #76B90044;
     letter-spacing: 2px;
 }
 .subtitle p {
     text-align: center;
-    color: #76B900aa !important;
+    color: #9aff00cc !important;
     font-family: 'Press Start 2P', monospace !important;
     font-size: 0.55em !important;
     line-height: 1.8 !important;
+    text-shadow: 0 0 8px #76B90066;
 }
 #go-btn {
     background: linear-gradient(135deg, #76B900, #9aff00) !important;
