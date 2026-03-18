@@ -7,7 +7,7 @@ import os
 FONT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Inter-Bold.ttf")
 MODEL_ID = "black-forest-labs/FLUX.2-klein-9B"
 
-hf_client = InferenceClient(token=os.environ.get("HF_TOKEN"))
+hf_client = InferenceClient(provider="fal-ai", token=os.environ.get("HF_TOKEN"))
 
 
 def get_font(size):
