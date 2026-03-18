@@ -171,15 +171,73 @@ def process(
 
 
 css = """
-.main-title { text-align: center; }
-.subtitle { text-align: center; color: #888; font-size: 1.05em; }
-#go-btn { background: #76B900 !important; color: white !important; font-weight: bold; font-size: 1.1em; min-height: 50px; }
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+.gradio-container { background: #0a0a0a !important; }
+.main-title h1 {
+    text-align: center;
+    font-family: 'Press Start 2P', monospace !important;
+    color: #76B900 !important;
+    font-size: 2.2em !important;
+    text-shadow: 0 0 10px #76B900, 0 0 30px #76B90066;
+    letter-spacing: 2px;
+}
+.subtitle p {
+    text-align: center;
+    color: #76B900aa !important;
+    font-family: 'Press Start 2P', monospace !important;
+    font-size: 0.55em !important;
+    line-height: 1.8 !important;
+}
+#go-btn {
+    background: #76B900 !important;
+    color: black !important;
+    font-weight: bold;
+    font-size: 1.1em;
+    min-height: 55px;
+    font-family: 'Press Start 2P', monospace !important;
+    text-shadow: none;
+    border: 2px solid #9aff00 !important;
+    box-shadow: 0 0 12px #76B90066;
+}
+#go-btn:hover { box-shadow: 0 0 25px #76B900; }
+.dark { --body-background-fill: #0a0a0a; }
 """
 
-with gr.Blocks(title="DLSS 5 Anything", css=css) as demo:
+with gr.Blocks(title="DLSS 5 Anything", css=css, theme=gr.themes.Base(
+    primary_hue=gr.themes.colors.green,
+    secondary_hue=gr.themes.colors.green,
+    neutral_hue=gr.themes.colors.gray,
+    font=gr.themes.GoogleFont("Press Start 2P"),
+).set(
+    body_background_fill="#0a0a0a",
+    body_background_fill_dark="#0a0a0a",
+    block_background_fill="#111111",
+    block_background_fill_dark="#111111",
+    block_border_color="#76B90033",
+    block_border_color_dark="#76B90033",
+    block_label_text_color="#76B900",
+    block_label_text_color_dark="#76B900",
+    block_title_text_color="#76B900",
+    block_title_text_color_dark="#76B900",
+    body_text_color="#cccccc",
+    body_text_color_dark="#cccccc",
+    button_primary_background_fill="#76B900",
+    button_primary_background_fill_dark="#76B900",
+    button_primary_text_color="#000000",
+    button_primary_text_color_dark="#000000",
+    input_background_fill="#1a1a1a",
+    input_background_fill_dark="#1a1a1a",
+    input_border_color="#76B90044",
+    input_border_color_dark="#76B90044",
+    border_color_accent="#76B900",
+    border_color_accent_dark="#76B900",
+    color_accent="#76B900",
+    color_accent_dark="#76B900",
+)) as demo:
     gr.Markdown("# DLSS 5 Anything", elem_classes="main-title")
     gr.Markdown(
-        "Turn any image into a DLSS 5 meme — powered by FLUX.2 Klein 9B KV on ZeroGPU",
+        "Turn any image into a DLSS 5 meme",
         elem_classes="subtitle",
     )
 
