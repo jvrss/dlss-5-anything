@@ -167,7 +167,120 @@ def process(
     ).images[0]
 
     progress(0.9, desc="Creating comparison...")
-    return create_dlss5_comparison(image, result), seed
+    comparison = create_dlss5_comparison(image, result)
+
+    # Resize both to same size for video generation later
+    w, h = result.size
+    original_resized = image.resize((w, h), Image.LANCZOS)
+
+    return comparison, seed, original_resized, result
+
+
+import tempfile
+
+
+def create_slider_video(original, enhanced, fps=30, slide_duration=3.0, hold_duration=1.0):
+    """Create a DLSS 5 slider comparison video."""
+    w, h = original.size
+    if w % 2: w -= 1
+    if h % 2: h -= 1
+    original = original.resize((w, h)).convert("RGBA")
+    enhanced = enhanced.resize((w, h)).convert("RGBA")
+
+    font_size = max(16, int(h * 0.038))
+    font = get_font(font_size)
+    pad_x = int(font_size * 1.0)
+    pad_y = int(font_size * 0.55)
+
+    slide_frames = int(fps * slide_duration)
+    hold_frames = int(fps * hold_duration)
+    total_frames = slide_frames + hold_frames
+
+    tmpdir = tempfile.mkdtemp()
+    frame_paths = []
+
+    for i in range(total_frames):
+        if i < slide_frames:
+            t = i / slide_frames
+            pos = t * t * (3 - 2 * t)  # smoothstep
+        else:
+            pos = 1.0
+
+        slider_x = int(w * pos)
+
+        # Left of slider = enhanced, right = original
+        frame = Image.new("RGBA", (w, h))
+        frame.paste(original, (0, 0))
+        if slider_x > 0:
+            frame.paste(enhanced.crop((0, 0, slider_x, h)), (0, 0))
+
+        overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(overlay)
+
+        # DLSS 5 On label (left, revealed)
+        txt_on = "DLSS 5 On"
+        bbox = font.getbbox(txt_on)
+        lw = bbox[2] - bbox[0] + 2 * pad_x
+        lh = bbox[3] - bbox[1] + 2 * pad_y
+        gh = max(4, int(lh * 0.13))
+        on_x = max(10, slider_x // 2 - lw // 2)
+        on_y = h - lh - gh - int(h * 0.06)
+        if slider_x > lw + 20:
+            draw.rectangle([on_x, on_y, on_x + lw, on_y + lh],
+                            fill=(255, 255, 255, 255), outline=(190, 190, 190, 255))
+            draw.text((on_x + lw // 2, on_y + lh // 2), txt_on,
+                       fill=(0, 0, 0, 255), font=font, anchor="mm")
+            draw.rectangle([on_x, on_y + lh, on_x + lw, on_y + lh + gh],
+                            fill=(118, 185, 0, 255))
+
+        # DLSS 5 Off label (right, original)
+        txt_off = "DLSS 5 Off"
+        bbox2 = font.getbbox(txt_off)
+        lw2 = bbox2[2] - bbox2[0] + 2 * pad_x
+        lh2 = bbox2[3] - bbox2[1] + 2 * pad_y
+        off_x = max(slider_x + 10, slider_x + (w - slider_x) // 2 - lw2 // 2)
+        off_y = h - lh2 - int(h * 0.06)
+        if (w - slider_x) > lw2 + 20:
+            draw.rectangle([off_x, off_y, off_x + lw2, off_y + lh2],
+                            fill=(10, 10, 10, 225), outline=(75, 75, 75, 255))
+            draw.text((off_x + lw2 // 2, off_y + lh2 // 2), txt_off,
+                       fill=(255, 255, 255, 255), font=font, anchor="mm")
+
+        # Slider line
+        if 0 < slider_x < w:
+            draw.rectangle([slider_x - 2, 0, slider_x + 2, h], fill=(255, 255, 255, 240))
+            mid_y = h // 2
+            for dy in range(-12, 13):
+                half = max(0, 12 - abs(dy))
+                draw.rectangle([slider_x - half, mid_y + dy, slider_x + half, mid_y + dy],
+                                fill=(255, 255, 255, 255))
+
+        frame = Image.alpha_composite(frame, overlay).convert("RGB")
+        fp = os.path.join(tmpdir, f"frame_{i:04d}.png")
+        frame.save(fp)
+        frame_paths.append(fp)
+
+    output_path = tempfile.mktemp(suffix=".mp4")
+    subprocess.run([
+        "ffmpeg", "-y", "-framerate", str(fps),
+        "-i", os.path.join(tmpdir, "frame_%04d.png"),
+        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        "-crf", "18", "-preset", "fast", output_path
+    ], capture_output=True, check=True)
+
+    for fp in frame_paths:
+        try: os.unlink(fp)
+        except OSError: pass
+    try: os.rmdir(tmpdir)
+    except OSError: pass
+
+    return output_path
+
+
+def generate_video(original_state, enhanced_state):
+    if original_state is None or enhanced_state is None:
+        raise gr.Error("Generate a DLSS 5 comparison first!")
+    return create_slider_video(original_state, enhanced_state)
 
 
 css = """
@@ -215,6 +328,17 @@ css = """
     box-shadow: 0 0 12px #76B90066;
 }
 #go-btn:hover { box-shadow: 0 0 25px #76B900; }
+#video-btn {
+    background: #2563eb !important;
+    color: white !important;
+    font-weight: bold;
+    font-size: 1em;
+    min-height: 50px;
+    font-family: 'Press Start 2P', monospace !important;
+    border: 2px solid #3b82f6 !important;
+    box-shadow: 0 0 12px #2563eb66;
+}
+#video-btn:hover { box-shadow: 0 0 25px #2563eb; }
 .dark { --body-background-fill: #0a0a0a; }
 """
 
@@ -297,10 +421,30 @@ with gr.Blocks(title="DLSS 5 Anything", css=css, theme=gr.themes.Base(
 
     output_image = gr.Image(label="Result", type="pil", elem_id="output-img")
 
+    # Hidden state for video generation
+    original_state = gr.State(None)
+    enhanced_state = gr.State(None)
+
+    video_btn = gr.Button("Download sliding video!", elem_id="video-btn")
+    video_output = gr.Video(label="Slider Video", visible=False)
+    video_file = gr.File(label="Download", visible=False)
+
     go_btn.click(
         fn=process,
         inputs=[input_image, prompt, seed, randomize_seed, num_inference_steps],
-        outputs=[output_image, seed],
+        outputs=[output_image, seed, original_state, enhanced_state],
+    )
+
+    def make_video_and_show(orig, enh):
+        if orig is None or enh is None:
+            raise gr.Error("Generate a DLSS 5 comparison first!")
+        path = create_slider_video(orig, enh)
+        return gr.update(value=path, visible=True), gr.update(value=path, visible=True)
+
+    video_btn.click(
+        fn=make_video_and_show,
+        inputs=[original_state, enhanced_state],
+        outputs=[video_output, video_file],
     )
 
 demo.launch()
