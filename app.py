@@ -180,17 +180,38 @@ import tempfile
 
 
 def create_slider_video(original, enhanced, fps=30, slide_duration=3.0, hold_duration=1.0):
-    """Create a DLSS 5 slider comparison video."""
+    """Create a DLSS 5 slider comparison video from raw original + enhanced images."""
     w, h = original.size
     if w % 2: w -= 1
     if h % 2: h -= 1
     original = original.resize((w, h)).convert("RGBA")
     enhanced = enhanced.resize((w, h)).convert("RGBA")
 
-    font_size = max(16, int(h * 0.038))
+    font_size = max(20, int(h * 0.076))
     font = get_font(font_size)
     pad_x = int(font_size * 1.0)
     pad_y = int(font_size * 0.55)
+    margin = int(h * 0.06)
+
+    # Pre-compute fixed label positions
+    # "DLSS 5 Off" — fixed bottom-right
+    bbox_off = font.getbbox("DLSS 5 Off")
+    lw_off = bbox_off[2] - bbox_off[0] + 2 * pad_x
+    lh_off = bbox_off[3] - bbox_off[1] + 2 * pad_y
+    off_x2 = w - int(w * 0.05)
+    off_x1 = off_x2 - lw_off
+    off_y2 = h - margin
+    off_y1 = off_y2 - lh_off
+
+    # "DLSS 5 On" — fixed bottom-left
+    bbox_on = font.getbbox("DLSS 5 On")
+    lw_on = bbox_on[2] - bbox_on[0] + 2 * pad_x
+    lh_on = bbox_on[3] - bbox_on[1] + 2 * pad_y
+    on_green_h = max(4, int(lh_on * 0.13))
+    on_x1 = int(w * 0.05)
+    on_x2 = on_x1 + lw_on
+    on_y2 = h - margin - on_green_h
+    on_y1 = on_y2 - lh_on
 
     slide_frames = int(fps * slide_duration)
     hold_frames = int(fps * hold_duration)
@@ -208,7 +229,7 @@ def create_slider_video(original, enhanced, fps=30, slide_duration=3.0, hold_dur
 
         slider_x = int(w * pos)
 
-        # Left of slider = enhanced, right = original
+        # Left = enhanced (revealed), right = original
         frame = Image.new("RGBA", (w, h))
         frame.paste(original, (0, 0))
         if slider_x > 0:
@@ -217,41 +238,29 @@ def create_slider_video(original, enhanced, fps=30, slide_duration=3.0, hold_dur
         overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
         draw = ImageDraw.Draw(overlay)
 
-        # DLSS 5 On label (left, revealed)
-        txt_on = "DLSS 5 On"
-        bbox = font.getbbox(txt_on)
-        lw = bbox[2] - bbox[0] + 2 * pad_x
-        lh = bbox[3] - bbox[1] + 2 * pad_y
-        gh = max(4, int(lh * 0.13))
-        on_x = max(10, slider_x // 2 - lw // 2)
-        on_y = h - lh - gh - int(h * 0.06)
-        if slider_x > lw + 20:
-            draw.rectangle([on_x, on_y, on_x + lw, on_y + lh],
-                            fill=(255, 255, 255, 255), outline=(190, 190, 190, 255))
-            draw.text((on_x + lw // 2, on_y + lh // 2), txt_on,
-                       fill=(0, 0, 0, 255), font=font, anchor="mm")
-            draw.rectangle([on_x, on_y + lh, on_x + lw, on_y + lh + gh],
-                            fill=(118, 185, 0, 255))
-
-        # DLSS 5 Off label (right, original)
-        txt_off = "DLSS 5 Off"
-        bbox2 = font.getbbox(txt_off)
-        lw2 = bbox2[2] - bbox2[0] + 2 * pad_x
-        lh2 = bbox2[3] - bbox2[1] + 2 * pad_y
-        off_x = max(slider_x + 10, slider_x + (w - slider_x) // 2 - lw2 // 2)
-        off_y = h - lh2 - int(h * 0.06)
-        if (w - slider_x) > lw2 + 20:
-            draw.rectangle([off_x, off_y, off_x + lw2, off_y + lh2],
+        # "DLSS 5 Off" — show only when slider hasn't reached it
+        if slider_x < off_x1:
+            draw.rectangle([off_x1, off_y1, off_x2, off_y2],
                             fill=(10, 10, 10, 225), outline=(75, 75, 75, 255))
-            draw.text((off_x + lw2 // 2, off_y + lh2 // 2), txt_off,
+            draw.text(((off_x1 + off_x2) // 2, (off_y1 + off_y2) // 2), "DLSS 5 Off",
                        fill=(255, 255, 255, 255), font=font, anchor="mm")
 
-        # Slider line
+        # "DLSS 5 On" — show only when slider has passed it
+        if slider_x > on_x2:
+            draw.rectangle([on_x1, on_y1, on_x2, on_y2],
+                            fill=(255, 255, 255, 255), outline=(190, 190, 190, 255))
+            draw.text(((on_x1 + on_x2) // 2, (on_y1 + on_y2) // 2), "DLSS 5 On",
+                       fill=(0, 0, 0, 255), font=font, anchor="mm")
+            draw.rectangle([on_x1, on_y2, on_x2, on_y2 + on_green_h],
+                            fill=(118, 185, 0, 255))
+
+        # Slider line + diamond handle
         if 0 < slider_x < w:
-            draw.rectangle([slider_x - 2, 0, slider_x + 2, h], fill=(255, 255, 255, 240))
+            draw.rectangle([slider_x - 2, 0, slider_x + 2, h], fill=(255, 255, 255, 230))
             mid_y = h // 2
-            for dy in range(-12, 13):
-                half = max(0, 12 - abs(dy))
+            size = 14
+            for dy in range(-size, size + 1):
+                half = size - abs(dy)
                 draw.rectangle([slider_x - half, mid_y + dy, slider_x + half, mid_y + dy],
                                 fill=(255, 255, 255, 255))
 
@@ -261,12 +270,15 @@ def create_slider_video(original, enhanced, fps=30, slide_duration=3.0, hold_dur
         frame_paths.append(fp)
 
     output_path = tempfile.mktemp(suffix=".mp4")
-    subprocess.run([
+    result = subprocess.run([
         "ffmpeg", "-y", "-framerate", str(fps),
         "-i", os.path.join(tmpdir, "frame_%04d.png"),
         "-c:v", "libx264", "-pix_fmt", "yuv420p",
         "-crf", "18", "-preset", "fast", output_path
-    ], capture_output=True, check=True)
+    ], capture_output=True, text=True)
+
+    if result.returncode != 0:
+        raise RuntimeError(f"ffmpeg failed: {result.stderr[-500:]}")
 
     for fp in frame_paths:
         try: os.unlink(fp)
