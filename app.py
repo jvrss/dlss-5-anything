@@ -239,44 +239,33 @@ with gr.Blocks(title="DLSS 5 Anything", css=css, theme=gr.themes.Base(
         elem_classes="subtitle",
     )
 
-    with gr.Row():
-        with gr.Column(scale=1):
-            input_image = gr.Image(label="Upload Image", type="pil")
-            prompt = gr.Textbox(
-                label="Prompt",
-                value="make it more realistic",
-                placeholder="e.g. make it more realistic",
-            )
-            with gr.Accordion("Advanced Settings", open=False):
-                seed = gr.Slider(label="Seed", minimum=0, maximum=MAX_SEED, step=1, value=0)
-                randomize_seed = gr.Checkbox(label="Randomize seed", value=True)
-                num_inference_steps = gr.Slider(
-                    label="Inference steps", minimum=1, maximum=20, step=1, value=4
-                )
-            go_btn = gr.Button("DLSS 5 it!", elem_id="go-btn", variant="primary")
+    input_image = gr.Image(label="Upload Image", type="pil")
+    prompt = gr.Textbox(value="make it more realistic", visible=False)
+    with gr.Accordion("Advanced Settings", open=False):
+        seed = gr.Slider(label="Seed", minimum=0, maximum=MAX_SEED, step=1, value=0)
+        randomize_seed = gr.Checkbox(label="Randomize seed", value=True)
+        num_inference_steps = gr.Slider(
+            label="Inference steps", minimum=1, maximum=20, step=1, value=4
+        )
+    go_btn = gr.Button("DLSS 5 it!", elem_id="go-btn", variant="primary")
 
-        with gr.Column(scale=2):
-            output_image = gr.Image(label="Result", type="pil")
+    gr.Examples(
+        examples=[
+            ["example_mario.png"],
+            ["example_oblivion.jpg"],
+            ["example_gta_sa.jpeg"],
+            ["example_roland.jpg"],
+            ["example_geralt.png"],
+        ],
+        inputs=[input_image],
+    )
+
+    output_image = gr.Image(label="Result", type="pil")
 
     go_btn.click(
         fn=process,
         inputs=[input_image, prompt, seed, randomize_seed, num_inference_steps],
         outputs=[output_image, seed],
-    )
-
-    gr.Examples(
-        examples=[
-            ["example_mario.png", "make it more realistic"],
-            ["example_oblivion.jpg", "make it more realistic"],
-            ["example_gta_sa.jpeg", "make it more realistic"],
-            ["example_roland.jpg", "make it more realistic"],
-            ["example_geralt.png", "make it more realistic"],
-        ],
-        inputs=[input_image, prompt],
-        outputs=[output_image, seed],
-        fn=process,
-        cache_examples=True,
-        cache_mode="lazy",
     )
 
 demo.launch()
