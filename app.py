@@ -363,7 +363,6 @@ css = """
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 #video-download { border: none !important; background: transparent !important; padding: 0 !important; }
-footer { font-size: 0.8em !important; }
 .dark { --body-background-fill: #0a0a0a; }
 """
 
