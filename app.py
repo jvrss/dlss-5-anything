@@ -211,16 +211,12 @@ with gr.Blocks(title="DLSS 5 Anything", css=css) as demo:
     gr.Examples(
         examples=[
             ["example_oblivion.jpg", "make it more realistic"],
-            ["example_alyx.jpg", "make it more realistic"],
+            ["example_gta_sa.jpeg", "make it more realistic"],
             ["example_roland.jpg", "make it more realistic"],
             ["example_mario.png", "make it more realistic"],
             ["example_geralt.png", "make it more realistic"],
         ],
         inputs=[input_image, prompt],
-        outputs=[output_image, seed],
-        fn=process,
-        cache_examples=True,
-        cache_mode="lazy",
     )
 
 demo.launch()
