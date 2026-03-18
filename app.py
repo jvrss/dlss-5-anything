@@ -176,6 +176,12 @@ css = """
 .gradio-container { background: #0a0a0a !important; max-width: 1100px !important; margin: 0 auto !important; padding-top: 30px !important; }
 #input-img { max-height: 300px; }
 #input-img img { max-height: 300px; object-fit: contain; }
+.gallery-item { border-color: #333 !important; }
+.progress-bar { background-color: #76B900 !important; }
+.progress-bar-wrap { background-color: #1a1a1a !important; border-color: #333 !important; }
+.eta-bar { background-color: #76B90033 !important; }
+.upload-area { border-color: #76B90044 !important; }
+.block { border-color: #76B90033 !important; }
 #output-img .image-container { height: auto !important; }
 #output-img .image-frame { height: auto !important; }
 #output-img .image-frame img { width: 100% !important; height: auto !important; max-height: none !important; object-fit: contain !important; }
@@ -237,6 +243,12 @@ with gr.Blocks(title="DLSS 5 Anything", css=css, theme=gr.themes.Base(
     input_border_color_dark="#76B90044",
     border_color_accent="#76B900",
     border_color_accent_dark="#76B900",
+    border_color_primary="#333333",
+    border_color_primary_dark="#333333",
+    background_fill_secondary="#111111",
+    background_fill_secondary_dark="#111111",
+    table_border_color="#333333",
+    table_border_color_dark="#333333",
 )) as demo:
     gr.Markdown("# DLSS 5 Anything", elem_classes="main-title")
     gr.Markdown(
