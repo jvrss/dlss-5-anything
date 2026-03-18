@@ -66,7 +66,7 @@ def create_dlss5_comparison(original: Image.Image, enhanced: Image.Image) -> Ima
     overlay = Image.new("RGBA", (w * 2, h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
 
-    font_size = max(16, int(h * 0.038))
+    font_size = max(16, int(h * 0.076))
     font = get_font(font_size)
 
     pad_x = int(font_size * 1.0)
