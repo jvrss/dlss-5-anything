@@ -293,7 +293,7 @@ def generate_video(original_state, enhanced_state):
 css = """
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
-.gradio-container { background: #0a0a0a !important; max-width: 1100px !important; margin: 0 auto !important; padding-top: 30px !important; }
+.gradio-container { background: #0a0a0a !important; max-width: 900px !important; margin: 0 auto !important; padding-top: 30px !important; width: 900px !important; }
 #input-img { max-height: 300px; }
 #input-img img { max-height: 300px; object-fit: contain; }
 .gallery-item { border-color: #333 !important; }
@@ -347,6 +347,19 @@ css = """
     box-shadow: 0 0 12px #2563eb66;
 }
 #video-btn:hover { box-shadow: 0 0 25px #2563eb; }
+#video-btn.loading::before {
+    content: '';
+    display: inline-block;
+    width: 1em; height: 1em;
+    border: 3px solid #ffffff44;
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 0.5em;
+    vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#video-download { border: none !important; background: transparent !important; padding: 0 !important; }
 .dark { --body-background-fill: #0a0a0a; }
 """
 
@@ -433,27 +446,43 @@ with gr.Blocks(title="DLSS 5 Anything", css=css, theme=gr.themes.Base(
     original_state = gr.State(None)
     enhanced_state = gr.State(None)
 
-    video_btn = gr.DownloadButton("Generate & download video", elem_id="video-btn", visible=False)
+    video_btn = gr.Button("Generate & download video", elem_id="video-btn", visible=False)
+    video_file = gr.File(visible=False, elem_id="video-download")
 
     def on_generate(image, prompt, seed, randomize_seed, num_inference_steps, progress=gr.Progress(track_tqdm=True)):
         comparison, seed, orig, enh = process(image, prompt, seed, randomize_seed, num_inference_steps, progress)
-        return comparison, seed, orig, enh, gr.update(visible=True)
+        return comparison, seed, orig, enh, gr.update(visible=True), gr.update(visible=False)
 
     go_btn.click(
         fn=on_generate,
         inputs=[input_image, prompt, seed, randomize_seed, num_inference_steps],
-        outputs=[output_image, seed, original_state, enhanced_state, video_btn],
+        outputs=[output_image, seed, original_state, enhanced_state, video_btn, video_file],
+    )
+
+    # Hide video button when input image changes
+    input_image.change(
+        fn=lambda: (gr.update(visible=False), gr.update(visible=False), None, None),
+        inputs=[],
+        outputs=[video_btn, video_file, original_state, enhanced_state],
     )
 
     def make_video(orig, enh):
         if orig is None or enh is None:
             raise gr.Error("Generate a DLSS 5 comparison first!")
         path = create_slider_video(orig, enh)
-        return gr.DownloadButton(value=path, label="Generate & download video")
+        return gr.update(value=path, visible=True)
 
     video_btn.click(
+        fn=lambda: gr.update(value="⏳ Generating video...", interactive=False),
+        inputs=[],
+        outputs=[video_btn],
+    ).then(
         fn=make_video,
         inputs=[original_state, enhanced_state],
+        outputs=[video_file],
+    ).then(
+        fn=lambda: gr.update(value="Generate & download video", interactive=True),
+        inputs=[],
         outputs=[video_btn],
     )
 
