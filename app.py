@@ -193,22 +193,24 @@ def create_slider_video(original, enhanced, fps=30, slide_duration=3.0, hold_dur
     pad_y = int(font_size * 0.55)
     margin = int(h * 0.06)
 
-    # Pre-compute fixed label positions
-    # "DLSS 5 Off" — fixed bottom-right
+    # Pre-compute label positions — centered in each half, same Y
+    # "DLSS 5 Off" — centered in right half
     bbox_off = font.getbbox("DLSS 5 Off")
     lw_off = bbox_off[2] - bbox_off[0] + 2 * pad_x
     lh_off = bbox_off[3] - bbox_off[1] + 2 * pad_y
-    off_x2 = w - int(w * 0.05)
-    off_x1 = off_x2 - lw_off
+    off_cx = w * 3 // 4  # center of right half
+    off_x1 = off_cx - lw_off // 2
+    off_x2 = off_x1 + lw_off
     off_y2 = h - margin
     off_y1 = off_y2 - lh_off
 
-    # "DLSS 5 On" — fixed bottom-left
+    # "DLSS 5 On" — centered in left half
     bbox_on = font.getbbox("DLSS 5 On")
     lw_on = bbox_on[2] - bbox_on[0] + 2 * pad_x
     lh_on = bbox_on[3] - bbox_on[1] + 2 * pad_y
     on_green_h = max(4, int(lh_on * 0.13))
-    on_x1 = int(w * 0.05)
+    on_cx = w // 4  # center of left half
+    on_x1 = on_cx - lw_on // 2
     on_x2 = on_x1 + lw_on
     on_y2 = h - margin - on_green_h
     on_y1 = on_y2 - lh_on
@@ -238,21 +240,20 @@ def create_slider_video(original, enhanced, fps=30, slide_duration=3.0, hold_dur
         overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
         draw = ImageDraw.Draw(overlay)
 
-        # "DLSS 5 Off" — show only when slider hasn't reached it
-        if slider_x < off_x1:
-            draw.rectangle([off_x1, off_y1, off_x2, off_y2],
-                            fill=(10, 10, 10, 225), outline=(75, 75, 75, 255))
-            draw.text(((off_x1 + off_x2) // 2, (off_y1 + off_y2) // 2), "DLSS 5 Off",
-                       fill=(255, 255, 255, 255), font=font, anchor="mm")
+        # Always draw both labels — the slider naturally cuts through them
+        # "DLSS 5 Off" — centered in right half
+        draw.rectangle([off_x1, off_y1, off_x2, off_y2],
+                        fill=(10, 10, 10, 225), outline=(75, 75, 75, 255))
+        draw.text(((off_x1 + off_x2) // 2, (off_y1 + off_y2) // 2), "DLSS 5 Off",
+                   fill=(255, 255, 255, 255), font=font, anchor="mm")
 
-        # "DLSS 5 On" — show only when slider has passed it
-        if slider_x > on_x2:
-            draw.rectangle([on_x1, on_y1, on_x2, on_y2],
-                            fill=(255, 255, 255, 255), outline=(190, 190, 190, 255))
-            draw.text(((on_x1 + on_x2) // 2, (on_y1 + on_y2) // 2), "DLSS 5 On",
-                       fill=(0, 0, 0, 255), font=font, anchor="mm")
-            draw.rectangle([on_x1, on_y2, on_x2, on_y2 + on_green_h],
-                            fill=(118, 185, 0, 255))
+        # "DLSS 5 On" — centered in left half
+        draw.rectangle([on_x1, on_y1, on_x2, on_y2],
+                        fill=(255, 255, 255, 255), outline=(190, 190, 190, 255))
+        draw.text(((on_x1 + on_x2) // 2, (on_y1 + on_y2) // 2), "DLSS 5 On",
+                   fill=(0, 0, 0, 255), font=font, anchor="mm")
+        draw.rectangle([on_x1, on_y2, on_x2, on_y2 + on_green_h],
+                        fill=(118, 185, 0, 255))
 
         # Slider line + diamond handle
         if 0 < slider_x < w:
@@ -329,17 +330,17 @@ css = """
     line-height: 1.8 !important;
 }
 #go-btn {
-    background: #76B900 !important;
+    background: linear-gradient(135deg, #76B900, #9aff00) !important;
     color: black !important;
     font-weight: bold;
-    font-size: 1.1em;
-    min-height: 55px;
+    font-size: 1.2em;
+    min-height: 60px;
     font-family: 'Press Start 2P', monospace !important;
     text-shadow: none;
     border: 2px solid #9aff00 !important;
-    box-shadow: 0 0 12px #76B90066;
+    box-shadow: 0 0 20px #76B900aa, inset 0 0 10px #ffffff22;
 }
-#go-btn:hover { box-shadow: 0 0 25px #76B900; }
+#go-btn:hover { box-shadow: 0 0 35px #76B900, inset 0 0 15px #ffffff33; }
 #video-btn {
     background: #2563eb !important;
     color: white !important;
@@ -437,26 +438,29 @@ with gr.Blocks(title="DLSS 5 Anything", css=css, theme=gr.themes.Base(
     original_state = gr.State(None)
     enhanced_state = gr.State(None)
 
-    video_btn = gr.Button("Download sliding video!", elem_id="video-btn")
-    video_output = gr.Video(label="Slider Video", visible=False)
-    video_file = gr.File(label="Download", visible=False)
+    video_btn = gr.Button("Generate & download video", elem_id="video-btn", visible=False)
+    video_file = gr.File(label="Video", visible=False, elem_id="video-download")
+
+    def on_generate(image, prompt, seed, randomize_seed, num_inference_steps, progress=gr.Progress(track_tqdm=True)):
+        comparison, seed, orig, enh = process(image, prompt, seed, randomize_seed, num_inference_steps, progress)
+        return comparison, seed, orig, enh, gr.update(visible=True)
 
     go_btn.click(
-        fn=process,
+        fn=on_generate,
         inputs=[input_image, prompt, seed, randomize_seed, num_inference_steps],
-        outputs=[output_image, seed, original_state, enhanced_state],
+        outputs=[output_image, seed, original_state, enhanced_state, video_btn],
     )
 
-    def make_video_and_show(orig, enh):
+    def make_video(orig, enh):
         if orig is None or enh is None:
             raise gr.Error("Generate a DLSS 5 comparison first!")
         path = create_slider_video(orig, enh)
-        return gr.update(value=path, visible=True), gr.update(value=path, visible=True)
+        return gr.update(value=path, visible=True)
 
     video_btn.click(
-        fn=make_video_and_show,
+        fn=make_video,
         inputs=[original_state, enhanced_state],
-        outputs=[video_output, video_file],
+        outputs=[video_file],
     )
 
 demo.launch()
