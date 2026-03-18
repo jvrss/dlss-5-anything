@@ -239,26 +239,31 @@ with gr.Blocks(title="DLSS 5 Anything", css=css, theme=gr.themes.Base(
         elem_classes="subtitle",
     )
 
-    input_image = gr.Image(label="Upload Image", type="pil")
     prompt = gr.Textbox(value="make it more realistic", visible=False)
-    with gr.Accordion("Advanced Settings", open=False):
-        seed = gr.Slider(label="Seed", minimum=0, maximum=MAX_SEED, step=1, value=0)
-        randomize_seed = gr.Checkbox(label="Randomize seed", value=True)
-        num_inference_steps = gr.Slider(
-            label="Inference steps", minimum=1, maximum=20, step=1, value=4
-        )
-    go_btn = gr.Button("DLSS 5 it!", elem_id="go-btn", variant="primary")
 
-    gr.Examples(
-        examples=[
-            ["example_mario.png"],
-            ["example_oblivion.jpg"],
-            ["example_gta_sa.jpeg"],
-            ["example_roland.jpg"],
-            ["example_geralt.png"],
-        ],
-        inputs=[input_image],
-    )
+    with gr.Row():
+        with gr.Column(scale=1):
+            input_image = gr.Image(label="Upload Image", type="pil")
+
+        with gr.Column(scale=1):
+            with gr.Accordion("Advanced Settings", open=False):
+                seed = gr.Slider(label="Seed", minimum=0, maximum=MAX_SEED, step=1, value=0)
+                randomize_seed = gr.Checkbox(label="Randomize seed", value=True)
+                num_inference_steps = gr.Slider(
+                    label="Inference steps", minimum=1, maximum=20, step=1, value=4
+                )
+            go_btn = gr.Button("DLSS 5 it!", elem_id="go-btn", variant="primary")
+
+            gr.Examples(
+                examples=[
+                    ["example_mario.png"],
+                    ["example_oblivion.jpg"],
+                    ["example_gta_sa.jpeg"],
+                    ["example_roland.jpg"],
+                    ["example_geralt.png"],
+                ],
+                inputs=[input_image],
+            )
 
     output_image = gr.Image(label="Result", type="pil")
 
