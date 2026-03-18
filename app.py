@@ -118,7 +118,7 @@ def process(image, prompt):
 
         result = client.predict(
             prompt=prompt,
-            input_images=[(handle_file(tmp.name),)],
+            input_images=[handle_file(tmp.name)],
             seed=42,
             randomize_seed=True,
             width=width,
@@ -128,8 +128,17 @@ def process(image, prompt):
             api_name="/generate",
         )
 
-        enhanced = Image.open(result[0])
+        # result is (image_data, seed) - image_data is a filepath or dict
+        img_result = result[0]
+        if isinstance(img_result, dict):
+            enhanced = Image.open(img_result["path"])
+        elif isinstance(img_result, str):
+            enhanced = Image.open(img_result)
+        else:
+            enhanced = Image.open(img_result)
         return create_dlss5_comparison(image, enhanced)
+    except Exception as e:
+        raise gr.Error(f"Generation failed: {e}")
     finally:
         os.unlink(tmp.name)
 
