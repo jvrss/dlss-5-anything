@@ -455,12 +455,16 @@ with gr.Blocks(title="DLSS 5 Anything", css=css, theme=gr.themes.Base(
         if orig is None or enh is None:
             raise gr.Error("Generate a DLSS 5 comparison first!")
         path = create_slider_video(orig, enh)
-        return gr.update(value=path, visible=True)
+        return gr.update(value=path, visible=True), gr.update(value="Generate & download video")
 
     video_btn.click(
+        fn=lambda: gr.update(value="Generating video..."),
+        inputs=[],
+        outputs=[video_btn],
+    ).then(
         fn=make_video,
         inputs=[original_state, enhanced_state],
-        outputs=[video_file],
+        outputs=[video_file, video_btn],
     )
 
 demo.launch()
