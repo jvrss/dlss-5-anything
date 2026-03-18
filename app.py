@@ -232,8 +232,6 @@ with gr.Blocks(title="DLSS 5 Anything", css=css, theme=gr.themes.Base(
     input_border_color_dark="#76B90044",
     border_color_accent="#76B900",
     border_color_accent_dark="#76B900",
-    color_accent="#76B900",
-    color_accent_dark="#76B900",
 )) as demo:
     gr.Markdown("# DLSS 5 Anything", elem_classes="main-title")
     gr.Markdown(
