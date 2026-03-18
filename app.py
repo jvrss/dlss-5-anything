@@ -193,51 +193,45 @@ def create_slider_video(original, enhanced, fps=30, slide_duration=3.0, hold_dur
     pad_y = int(font_size * 0.55)
     margin = int(h * 0.06)
 
-    # Pre-compute label positions — centered in each half, same Y
-    # "DLSS 5 Off" — centered in right half
+    # Same centered label position for both — slider reveals one, hides the other
     bbox_off = font.getbbox("DLSS 5 Off")
-    lw_off = bbox_off[2] - bbox_off[0] + 2 * pad_x
-    lh_off = bbox_off[3] - bbox_off[1] + 2 * pad_y
-    off_cx = w * 3 // 4  # center of right half
-    off_x1 = off_cx - lw_off // 2
-    off_x2 = off_x1 + lw_off
-    off_y2 = h - margin
-    off_y1 = off_y2 - lh_off
-
-    # "DLSS 5 On" — centered in left half
     bbox_on = font.getbbox("DLSS 5 On")
-    lw_on = bbox_on[2] - bbox_on[0] + 2 * pad_x
-    lh_on = bbox_on[3] - bbox_on[1] + 2 * pad_y
-    on_green_h = max(4, int(lh_on * 0.13))
-    on_cx = w // 4  # center of left half
-    on_x1 = on_cx - lw_on // 2
-    on_x2 = on_x1 + lw_on
-    on_y2 = h - margin - on_green_h
-    on_y1 = on_y2 - lh_on
+    tw = max(bbox_off[2] - bbox_off[0], bbox_on[2] - bbox_on[0])
+    th = max(bbox_off[3] - bbox_off[1], bbox_on[3] - bbox_on[1])
+    lw = tw + 2 * pad_x
+    lh = th + 2 * pad_y
+    green_h = max(4, int(lh * 0.13))
+
+    lx1 = (w - lw) // 2
+    lx2 = lx1 + lw
+    ly2 = h - margin - green_h
+    ly1 = ly2 - lh
+
+    # Bake "DLSS 5 Off" into original
+    off_ov = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    od = ImageDraw.Draw(off_ov)
+    od.rectangle([lx1, ly1, lx2, ly2], fill=(10, 10, 10, 225), outline=(75, 75, 75, 255))
+    od.text(((lx1 + lx2) // 2, (ly1 + ly2) // 2), "DLSS 5 Off",
+             fill=(255, 255, 255, 255), font=font, anchor="mm")
+    original = Image.alpha_composite(original, off_ov)
+
+    # Bake "DLSS 5 On" into enhanced
+    on_ov = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    nd = ImageDraw.Draw(on_ov)
+    nd.rectangle([lx1, ly1, lx2, ly2], fill=(255, 255, 255, 255), outline=(190, 190, 190, 255))
+    nd.text(((lx1 + lx2) // 2, (ly1 + ly2) // 2), "DLSS 5 On",
+             fill=(0, 0, 0, 255), font=font, anchor="mm")
+    nd.rectangle([lx1, ly2, lx2, ly2 + green_h], fill=(118, 185, 0, 255))
+    enhanced = Image.alpha_composite(enhanced, on_ov)
 
     slide_frames = int(fps * slide_duration)
     hold_frames = int(fps * hold_duration)
     total_frames = slide_frames + hold_frames
 
-    # Pre-render the static label overlay (same for every frame)
-    label_overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    ld = ImageDraw.Draw(label_overlay)
-    ld.rectangle([off_x1, off_y1, off_x2, off_y2],
-                  fill=(10, 10, 10, 225), outline=(75, 75, 75, 255))
-    ld.text(((off_x1 + off_x2) // 2, (off_y1 + off_y2) // 2), "DLSS 5 Off",
-             fill=(255, 255, 255, 255), font=font, anchor="mm")
-    ld.rectangle([on_x1, on_y1, on_x2, on_y2],
-                  fill=(255, 255, 255, 255), outline=(190, 190, 190, 255))
-    ld.text(((on_x1 + on_x2) // 2, (on_y1 + on_y2) // 2), "DLSS 5 On",
-             fill=(0, 0, 0, 255), font=font, anchor="mm")
-    ld.rectangle([on_x1, on_y2, on_x2, on_y2 + on_green_h],
-                  fill=(118, 185, 0, 255))
-
-    # Convert source images to RGB numpy for speed
+    # Convert to numpy for fast compositing
     import numpy as np
     orig_arr = np.array(original.convert("RGB"))
     enh_arr = np.array(enhanced.convert("RGB"))
-    label_rgba = np.array(label_overlay)
 
     # Pipe raw frames directly to ffmpeg (no disk I/O)
     output_path = tempfile.mktemp(suffix=".mp4")
@@ -261,16 +255,10 @@ def create_slider_video(original, enhanced, fps=30, slide_duration=3.0, hold_dur
 
         slider_x = int(w * pos)
 
-        # Composite original + enhanced at slider boundary (numpy, fast)
+        # Composite: left of slider = enhanced (with On label), right = original (with Off label)
         frame_arr = orig_arr.copy()
         if slider_x > 0:
             frame_arr[:, :slider_x] = enh_arr[:, :slider_x]
-
-        # Alpha-composite labels onto frame
-        alpha = label_rgba[:, :, 3:4].astype(np.float32) / 255.0
-        label_rgb = label_rgba[:, :, :3].astype(np.float32)
-        frame_f = frame_arr.astype(np.float32)
-        frame_arr = (label_rgb * alpha + frame_f * (1 - alpha)).astype(np.uint8)
 
         # Draw slider line directly in numpy
         if 0 < slider_x < w:
