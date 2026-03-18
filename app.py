@@ -176,7 +176,8 @@ css = """
 .gradio-container { background: #0a0a0a !important; max-width: 1100px !important; }
 #input-img { max-height: 300px; }
 #input-img img { max-height: 300px; object-fit: contain; }
-#output-img img { max-height: none; }
+#output-img { min-height: 400px; }
+#output-img img { max-height: none; width: 100%; height: auto; }
 .main-title h1 {
     text-align: center;
     font-family: 'Press Start 2P', monospace !important;
