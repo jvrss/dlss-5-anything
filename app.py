@@ -1,11 +1,13 @@
 import gradio as gr
-from gradio_client import Client, handle_file
+from huggingface_hub import InferenceClient
 from PIL import Image, ImageDraw, ImageFont
-import tempfile
+import io
 import os
 
 FONT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Inter-Bold.ttf")
-BFL_SPACE = "black-forest-labs/flux-klein-9b-kv"
+MODEL_ID = "black-forest-labs/FLUX.2-klein-9B"
+
+hf_client = InferenceClient(token=os.environ.get("HF_TOKEN"))
 
 
 def get_font(size):
@@ -46,7 +48,6 @@ def create_dlss5_comparison(original: Image.Image, enhanced: Image.Image) -> Ima
         y = bottom_y - lh - gh
 
         if dark:
-            # DLSS 5 Off: dark bg, white text, subtle border
             draw.rectangle(
                 [x, y, x + lw, y + lh],
                 fill=(10, 10, 10, 225),
@@ -61,7 +62,6 @@ def create_dlss5_comparison(original: Image.Image, enhanced: Image.Image) -> Ima
                 anchor="mm",
             )
         else:
-            # DLSS 5 On: white bg, black text
             draw.rectangle(
                 [x, y, x + lw, y + lh],
                 fill=(255, 255, 255, 255),
@@ -77,7 +77,6 @@ def create_dlss5_comparison(original: Image.Image, enhanced: Image.Image) -> Ima
             )
 
         if green_bar:
-            # NVIDIA green bar below label
             draw.rectangle(
                 [x, y + lh, x + lw, y + lh + gh], fill=(118, 185, 0, 255)
             )
@@ -96,51 +95,15 @@ def process(image, prompt):
     if image is None:
         raise gr.Error("Please upload an image!")
 
-    # Save input to temp file for the API
-    tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-    image.save(tmp.name)
-    tmp.close()
-
     try:
-        client = Client(BFL_SPACE)
-
-        # Calculate output dims matching aspect ratio (max 1024, multiple of 8)
-        iw, ih = image.size
-        ar = iw / ih
-        if ar >= 1:
-            width = 1024
-            height = round(1024 / ar / 8) * 8
-        else:
-            height = 1024
-            width = round(1024 * ar / 8) * 8
-        width = max(256, min(1024, width))
-        height = max(256, min(1024, height))
-
-        result = client.predict(
+        enhanced = hf_client.image_to_image(
+            image=image,
             prompt=prompt,
-            input_images=[handle_file(tmp.name)],
-            seed=42,
-            randomize_seed=True,
-            width=width,
-            height=height,
-            num_inference_steps=4,
-            prompt_upsampling=False,
-            api_name="/generate",
+            model=MODEL_ID,
         )
-
-        # result is (image_data, seed) - image_data is a filepath or dict
-        img_result = result[0]
-        if isinstance(img_result, dict):
-            enhanced = Image.open(img_result["path"])
-        elif isinstance(img_result, str):
-            enhanced = Image.open(img_result)
-        else:
-            enhanced = Image.open(img_result)
         return create_dlss5_comparison(image, enhanced)
     except Exception as e:
         raise gr.Error(f"Generation failed: {e}")
-    finally:
-        os.unlink(tmp.name)
 
 
 css = """
