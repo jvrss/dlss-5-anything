@@ -40,7 +40,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 MAX_SEED = np.iinfo(np.int32).max
 
 FONT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Inter-Bold.ttf")
-MODEL_ID = "black-forest-labs/FLUX.2-klein-9b-kv"
+MODEL_ID = "black-forest-labs/FLUX.2-klein-9b-kv-fp8"
 
 print("Loading FLUX.2 Klein 9B KV model...")
 pipe = Flux2KleinKVPipeline.from_pretrained(MODEL_ID, torch_dtype=dtype, token=HF_TOKEN)
