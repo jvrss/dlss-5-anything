@@ -219,73 +219,79 @@ def create_slider_video(original, enhanced, fps=30, slide_duration=3.0, hold_dur
     hold_frames = int(fps * hold_duration)
     total_frames = slide_frames + hold_frames
 
-    tmpdir = tempfile.mkdtemp()
-    frame_paths = []
+    # Pre-render the static label overlay (same for every frame)
+    label_overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ld = ImageDraw.Draw(label_overlay)
+    ld.rectangle([off_x1, off_y1, off_x2, off_y2],
+                  fill=(10, 10, 10, 225), outline=(75, 75, 75, 255))
+    ld.text(((off_x1 + off_x2) // 2, (off_y1 + off_y2) // 2), "DLSS 5 Off",
+             fill=(255, 255, 255, 255), font=font, anchor="mm")
+    ld.rectangle([on_x1, on_y1, on_x2, on_y2],
+                  fill=(255, 255, 255, 255), outline=(190, 190, 190, 255))
+    ld.text(((on_x1 + on_x2) // 2, (on_y1 + on_y2) // 2), "DLSS 5 On",
+             fill=(0, 0, 0, 255), font=font, anchor="mm")
+    ld.rectangle([on_x1, on_y2, on_x2, on_y2 + on_green_h],
+                  fill=(118, 185, 0, 255))
+
+    # Convert source images to RGB numpy for speed
+    import numpy as np
+    orig_arr = np.array(original.convert("RGB"))
+    enh_arr = np.array(enhanced.convert("RGB"))
+    label_rgba = np.array(label_overlay)
+
+    # Pipe raw frames directly to ffmpeg (no disk I/O)
+    output_path = tempfile.mktemp(suffix=".mp4")
+    ffmpeg_proc = subprocess.Popen([
+        "ffmpeg", "-y",
+        "-f", "rawvideo", "-vcodec", "rawvideo",
+        "-s", f"{w}x{h}", "-pix_fmt", "rgb24",
+        "-r", str(fps), "-i", "-",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        "-crf", "18", "-preset", "fast", output_path
+    ], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    mid_y = h // 2
 
     for i in range(total_frames):
         if i < slide_frames:
             t = i / slide_frames
-            pos = t * t * (3 - 2 * t)  # smoothstep
+            pos = t * t * (3 - 2 * t)
         else:
             pos = 1.0
 
         slider_x = int(w * pos)
 
-        # Left = enhanced (revealed), right = original
-        frame = Image.new("RGBA", (w, h))
-        frame.paste(original, (0, 0))
+        # Composite original + enhanced at slider boundary (numpy, fast)
+        frame_arr = orig_arr.copy()
         if slider_x > 0:
-            frame.paste(enhanced.crop((0, 0, slider_x, h)), (0, 0))
+            frame_arr[:, :slider_x] = enh_arr[:, :slider_x]
 
-        overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(overlay)
+        # Alpha-composite labels onto frame
+        alpha = label_rgba[:, :, 3:4].astype(np.float32) / 255.0
+        label_rgb = label_rgba[:, :, :3].astype(np.float32)
+        frame_f = frame_arr.astype(np.float32)
+        frame_arr = (label_rgb * alpha + frame_f * (1 - alpha)).astype(np.uint8)
 
-        # Always draw both labels — the slider naturally cuts through them
-        # "DLSS 5 Off" — centered in right half
-        draw.rectangle([off_x1, off_y1, off_x2, off_y2],
-                        fill=(10, 10, 10, 225), outline=(75, 75, 75, 255))
-        draw.text(((off_x1 + off_x2) // 2, (off_y1 + off_y2) // 2), "DLSS 5 Off",
-                   fill=(255, 255, 255, 255), font=font, anchor="mm")
-
-        # "DLSS 5 On" — centered in left half
-        draw.rectangle([on_x1, on_y1, on_x2, on_y2],
-                        fill=(255, 255, 255, 255), outline=(190, 190, 190, 255))
-        draw.text(((on_x1 + on_x2) // 2, (on_y1 + on_y2) // 2), "DLSS 5 On",
-                   fill=(0, 0, 0, 255), font=font, anchor="mm")
-        draw.rectangle([on_x1, on_y2, on_x2, on_y2 + on_green_h],
-                        fill=(118, 185, 0, 255))
-
-        # Slider line + diamond handle
+        # Draw slider line directly in numpy
         if 0 < slider_x < w:
-            draw.rectangle([slider_x - 2, 0, slider_x + 2, h], fill=(255, 255, 255, 230))
-            mid_y = h // 2
+            x1 = max(0, slider_x - 2)
+            x2 = min(w, slider_x + 3)
+            frame_arr[:, x1:x2] = 255
+            # Diamond handle
             size = 14
             for dy in range(-size, size + 1):
                 half = size - abs(dy)
-                draw.rectangle([slider_x - half, mid_y + dy, slider_x + half, mid_y + dy],
-                                fill=(255, 255, 255, 255))
+                dx1 = max(0, slider_x - half)
+                dx2 = min(w, slider_x + half + 1)
+                frame_arr[mid_y + dy, dx1:dx2] = 255
 
-        frame = Image.alpha_composite(frame, overlay).convert("RGB")
-        fp = os.path.join(tmpdir, f"frame_{i:04d}.png")
-        frame.save(fp)
-        frame_paths.append(fp)
+        ffmpeg_proc.stdin.write(frame_arr.tobytes())
 
-    output_path = tempfile.mktemp(suffix=".mp4")
-    result = subprocess.run([
-        "ffmpeg", "-y", "-framerate", str(fps),
-        "-i", os.path.join(tmpdir, "frame_%04d.png"),
-        "-c:v", "libx264", "-pix_fmt", "yuv420p",
-        "-crf", "18", "-preset", "fast", output_path
-    ], capture_output=True, text=True)
+    ffmpeg_proc.stdin.close()
+    ffmpeg_proc.wait()
 
-    if result.returncode != 0:
-        raise RuntimeError(f"ffmpeg failed: {result.stderr[-500:]}")
-
-    for fp in frame_paths:
-        try: os.unlink(fp)
-        except OSError: pass
-    try: os.rmdir(tmpdir)
-    except OSError: pass
+    if ffmpeg_proc.returncode != 0:
+        raise RuntimeError("ffmpeg failed")
 
     return output_path
 
@@ -438,8 +444,7 @@ with gr.Blocks(title="DLSS 5 Anything", css=css, theme=gr.themes.Base(
     original_state = gr.State(None)
     enhanced_state = gr.State(None)
 
-    video_btn = gr.Button("Generate & download video", elem_id="video-btn", visible=False)
-    video_file = gr.File(label="Video", visible=False, elem_id="video-download")
+    video_btn = gr.DownloadButton("Generate & download video", elem_id="video-btn", visible=False)
 
     def on_generate(image, prompt, seed, randomize_seed, num_inference_steps, progress=gr.Progress(track_tqdm=True)):
         comparison, seed, orig, enh = process(image, prompt, seed, randomize_seed, num_inference_steps, progress)
@@ -455,16 +460,12 @@ with gr.Blocks(title="DLSS 5 Anything", css=css, theme=gr.themes.Base(
         if orig is None or enh is None:
             raise gr.Error("Generate a DLSS 5 comparison first!")
         path = create_slider_video(orig, enh)
-        return gr.update(value=path, visible=True), gr.update(value="Generate & download video")
+        return gr.DownloadButton(value=path, label="Generate & download video")
 
     video_btn.click(
-        fn=lambda: gr.update(value="Generating video..."),
-        inputs=[],
-        outputs=[video_btn],
-    ).then(
         fn=make_video,
         inputs=[original_state, enhanced_state],
-        outputs=[video_file, video_btn],
+        outputs=[video_btn],
     )
 
 demo.launch()
