@@ -179,7 +179,7 @@ def process(
 import tempfile
 
 
-def create_slider_video(original, enhanced, fps=30, slide_duration=3.0, hold_duration=1.0):
+def create_slider_video(original, enhanced, fps=30, pause_duration=0.8, slide_duration=3.0, hold_duration=1.0):
     """Create a DLSS 5 slider comparison video from raw original + enhanced images."""
     w, h = original.size
     if w % 2: w -= 1
@@ -224,9 +224,10 @@ def create_slider_video(original, enhanced, fps=30, slide_duration=3.0, hold_dur
     nd.rectangle([lx1, ly2, lx2, ly2 + green_h], fill=(118, 185, 0, 255))
     enhanced = Image.alpha_composite(enhanced, on_ov)
 
+    pause_frames = int(fps * pause_duration)
     slide_frames = int(fps * slide_duration)
     hold_frames = int(fps * hold_duration)
-    total_frames = slide_frames + hold_frames
+    total_frames = pause_frames + slide_frames + hold_frames
 
     # Convert to numpy for fast compositing
     import numpy as np
@@ -247,8 +248,10 @@ def create_slider_video(original, enhanced, fps=30, slide_duration=3.0, hold_dur
     mid_y = h // 2
 
     for i in range(total_frames):
-        if i < slide_frames:
-            t = i / slide_frames
+        if i < pause_frames:
+            pos = 0.0
+        elif i < pause_frames + slide_frames:
+            t = (i - pause_frames) / slide_frames
             pos = t * t * (3 - 2 * t)
         else:
             pos = 1.0
