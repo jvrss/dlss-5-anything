@@ -176,8 +176,9 @@ css = """
 .gradio-container { background: #0a0a0a !important; max-width: 1100px !important; margin: 0 auto !important; padding-top: 30px !important; }
 #input-img { max-height: 300px; }
 #input-img img { max-height: 300px; object-fit: contain; }
-#output-img { min-height: 400px; }
-#output-img img { max-height: none; width: 100%; height: auto; }
+#output-img .image-container { height: auto !important; }
+#output-img .image-frame { height: auto !important; }
+#output-img .image-frame img { width: 100% !important; height: auto !important; max-height: none !important; object-fit: contain !important; }
 .main-title h1 {
     text-align: center;
     font-family: 'Press Start 2P', monospace !important;
