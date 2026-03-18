@@ -180,6 +180,9 @@ css = """
 .progress-bar { background-color: #76B900 !important; }
 .progress-bar-wrap { background-color: #1a1a1a !important; border-color: #333 !important; }
 .eta-bar { background-color: #76B90033 !important; }
+.label-wrap { background: #111111 !important; color: #cccccc !important; }
+.gallery-item { background: #111111 !important; }
+* { --neutral-50: #1a1a1a !important; --neutral-100: #222222 !important; --neutral-200: #333333 !important; }
 .upload-area { border-color: #76B90044 !important; }
 .block { border-color: #76B90033 !important; }
 #output-img .image-container { height: auto !important; }
@@ -249,6 +252,16 @@ with gr.Blocks(title="DLSS 5 Anything", css=css, theme=gr.themes.Base(
     background_fill_secondary_dark="#111111",
     table_border_color="#333333",
     table_border_color_dark="#333333",
+    background_fill_primary="#0f0f0f",
+    background_fill_primary_dark="#0f0f0f",
+    shadow_drop="none",
+    shadow_drop_lg="none",
+    checkbox_background_color="#1a1a1a",
+    checkbox_background_color_dark="#1a1a1a",
+    checkbox_background_color_selected="#76B900",
+    checkbox_background_color_selected_dark="#76B900",
+    slider_color="#76B900",
+    slider_color_dark="#76B900",
 )) as demo:
     gr.Markdown("# DLSS 5 Anything", elem_classes="main-title")
     gr.Markdown(
