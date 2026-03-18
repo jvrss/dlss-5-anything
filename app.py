@@ -296,7 +296,7 @@ def generate_video(original_state, enhanced_state):
 css = """
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
-.gradio-container { background: #0a0a0a !important; max-width: 900px !important; margin: 0 auto !important; padding-top: 30px !important; width: 900px !important; }
+.gradio-container { background: #0a0a0a !important; max-width: 900px !important; margin: 0 auto !important; padding-top: 30px !important; }
 #input-img { max-height: 300px; }
 #input-img img { max-height: 300px; object-fit: contain; }
 .gallery-item { border-color: #333 !important; }
