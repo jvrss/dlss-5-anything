@@ -173,7 +173,10 @@ def process(
 css = """
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
-.gradio-container { background: #0a0a0a !important; }
+.gradio-container { background: #0a0a0a !important; max-width: 1100px !important; }
+#input-img { max-height: 300px; }
+#input-img img { max-height: 300px; object-fit: contain; }
+#output-img img { max-height: none; }
 .main-title h1 {
     text-align: center;
     font-family: 'Press Start 2P', monospace !important;
@@ -243,7 +246,7 @@ with gr.Blocks(title="DLSS 5 Anything", css=css, theme=gr.themes.Base(
 
     with gr.Row():
         with gr.Column(scale=1):
-            input_image = gr.Image(label="Upload Image", type="pil")
+            input_image = gr.Image(label="Upload Image", type="pil", elem_id="input-img")
 
         with gr.Column(scale=1):
             with gr.Accordion("Advanced Settings", open=False):
@@ -265,7 +268,7 @@ with gr.Blocks(title="DLSS 5 Anything", css=css, theme=gr.themes.Base(
                 inputs=[input_image],
             )
 
-    output_image = gr.Image(label="Result", type="pil")
+    output_image = gr.Image(label="Result", type="pil", elem_id="output-img")
 
     go_btn.click(
         fn=process,
