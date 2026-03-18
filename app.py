@@ -1,13 +1,51 @@
-import gradio as gr
-from huggingface_hub import InferenceClient
-from PIL import Image, ImageDraw, ImageFont
-import io
 import os
 
-FONT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Inter-Bold.ttf")
-MODEL_ID = "black-forest-labs/FLUX.2-klein-9B"
+HF_TOKEN = os.environ.get("HF_TOKEN")
 
-hf_client = InferenceClient(provider="fal-ai", token=os.environ.get("HF_TOKEN"))
+import subprocess
+import spaces
+
+
+def apply_patch():
+    import diffusers
+
+    site_packages = os.path.dirname(diffusers.__file__)
+    patch_file = os.path.join(os.path.dirname(__file__), "flux2_klein_kv.patch")
+
+    if os.path.exists(patch_file):
+        result = subprocess.run(
+            ["patch", "-p2", "--forward", "--batch"],
+            cwd=os.path.dirname(site_packages),
+            stdin=open(patch_file),
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            print("Patch applied successfully")
+        else:
+            print(f"Patch output: {result.stdout}\n{result.stderr}")
+
+
+apply_patch()
+
+import random
+import gradio as gr
+import numpy as np
+import torch
+from PIL import Image, ImageDraw, ImageFont
+from diffusers.pipelines.flux2.pipeline_flux2_klein_kv import Flux2KleinKVPipeline
+
+dtype = torch.bfloat16
+device = "cuda" if torch.cuda.is_available() else "cpu"
+MAX_SEED = np.iinfo(np.int32).max
+
+FONT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Inter-Bold.ttf")
+MODEL_ID = "black-forest-labs/FLUX.2-klein-9b-kv"
+
+print("Loading FLUX.2 Klein 9B KV model...")
+pipe = Flux2KleinKVPipeline.from_pretrained(MODEL_ID, torch_dtype=dtype, token=HF_TOKEN)
+pipe.to("cuda")
+print("Model loaded!")
 
 
 def get_font(size):
@@ -21,12 +59,10 @@ def create_dlss5_comparison(original: Image.Image, enhanced: Image.Image) -> Ima
     w, h = original.size
     enhanced = enhanced.resize((w, h), Image.LANCZOS)
 
-    # Side-by-side canvas
     canvas = Image.new("RGB", (w * 2, h))
     canvas.paste(original, (0, 0))
     canvas.paste(enhanced, (w, 0))
 
-    # RGBA overlay for semi-transparent labels
     overlay = Image.new("RGBA", (w * 2, h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
 
@@ -91,19 +127,47 @@ def create_dlss5_comparison(original: Image.Image, enhanced: Image.Image) -> Ima
     return canvas.convert("RGB")
 
 
-def process(image, prompt):
+@spaces.GPU(duration=85)
+def process(
+    image,
+    prompt,
+    seed=42,
+    randomize_seed=True,
+    num_inference_steps=4,
+    progress=gr.Progress(track_tqdm=True),
+):
     if image is None:
         raise gr.Error("Please upload an image!")
 
-    try:
-        enhanced = hf_client.image_to_image(
-            image=image,
-            prompt=prompt,
-            model=MODEL_ID,
-        )
-        return create_dlss5_comparison(image, enhanced)
-    except Exception as e:
-        raise gr.Error(f"Generation failed: {e}")
+    if randomize_seed:
+        seed = random.randint(0, MAX_SEED)
+
+    # Match aspect ratio, max 1024, multiple of 8
+    iw, ih = image.size
+    ar = iw / ih
+    if ar >= 1:
+        width = 1024
+        height = round(1024 / ar / 8) * 8
+    else:
+        height = 1024
+        width = round(1024 * ar / 8) * 8
+    width = max(256, min(1024, width))
+    height = max(256, min(1024, height))
+
+    generator = torch.Generator(device=device).manual_seed(seed)
+
+    progress(0.2, desc="Generating DLSS 5 version...")
+    result = pipe(
+        prompt=prompt,
+        image=[image],
+        height=height,
+        width=width,
+        num_inference_steps=num_inference_steps,
+        generator=generator,
+    ).images[0]
+
+    progress(0.9, desc="Creating comparison...")
+    return create_dlss5_comparison(image, result), seed
 
 
 css = """
@@ -115,7 +179,7 @@ css = """
 with gr.Blocks(title="DLSS 5 Anything", css=css) as demo:
     gr.Markdown("# DLSS 5 Anything", elem_classes="main-title")
     gr.Markdown(
-        "Turn any image into a DLSS 5 meme — powered by FLUX.2 Klein",
+        "Turn any image into a DLSS 5 meme — powered by FLUX.2 Klein 9B KV on ZeroGPU",
         elem_classes="subtitle",
     )
 
@@ -127,11 +191,21 @@ with gr.Blocks(title="DLSS 5 Anything", css=css) as demo:
                 value="make it more realistic",
                 placeholder="e.g. make it more realistic",
             )
+            with gr.Accordion("Advanced Settings", open=False):
+                seed = gr.Slider(label="Seed", minimum=0, maximum=MAX_SEED, step=1, value=0)
+                randomize_seed = gr.Checkbox(label="Randomize seed", value=True)
+                num_inference_steps = gr.Slider(
+                    label="Inference steps", minimum=1, maximum=20, step=1, value=4
+                )
             go_btn = gr.Button("DLSS 5 it!", elem_id="go-btn", variant="primary")
 
         with gr.Column(scale=2):
             output_image = gr.Image(label="Result", type="pil")
 
-    go_btn.click(fn=process, inputs=[input_image, prompt], outputs=[output_image])
+    go_btn.click(
+        fn=process,
+        inputs=[input_image, prompt, seed, randomize_seed, num_inference_steps],
+        outputs=[output_image, seed],
+    )
 
 demo.launch()
