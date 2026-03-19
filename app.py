@@ -413,7 +413,7 @@ with gr.Blocks(title="DLSS 5 Anything", css=css, theme=gr.themes.Base(
 )) as demo:
     gr.Markdown("# DLSS 5 Anything", elem_classes="main-title")
     gr.Markdown(
-        "Turn any image into a DLSS 5 meme",
+        "Turn any image into a DLSS 5 meme (using FLUX.2-klein-9b-kv)",
         elem_classes="subtitle",
     )
 

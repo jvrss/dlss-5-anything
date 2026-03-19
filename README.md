@@ -7,5 +7,5 @@ sdk: gradio
 sdk_version: 5.23.0
 app_file: app.py
 pinned: false
-short_description: Turn any image into a DLSS 5 meme
+short_description: Turn any image into a DLSS 5 meme (using FLUX.2-klein-9b-kv)
 ---
