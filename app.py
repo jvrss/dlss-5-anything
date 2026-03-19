@@ -363,9 +363,6 @@ css = """
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 #video-download { border: none !important; background: transparent !important; padding: 0 !important; }
-.toast-wrap { font-size: 0.5em !important; }
-.toast-body { padding: 4px 8px !important; }
-.toast-icon svg { width: 16px !important; height: 16px !important; }
 .dark { --body-background-fill: #0a0a0a; }
 """
 
