@@ -147,10 +147,10 @@ def process(
     ar = iw / ih
     if ar >= 1:
         width = 1024
-        height = round(1024 / ar / 8) * 8
+        height = round(1024 / ar / 16) * 16
     else:
         height = 1024
-        width = round(1024 * ar / 8) * 8
+        width = round(1024 * ar / 16) * 16
     width = max(256, min(1024, width))
     height = max(256, min(1024, height))
 
