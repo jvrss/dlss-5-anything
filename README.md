@@ -8,8 +8,8 @@ app_file: app.py \
 pinned: false \
 short_description: Turn any image into a DLSS 5 meme (using FLUX.2-klein-9b-kv) 
 
-Setar ambiente:
+Set environment:
 py -3.11 -m venv venv
 
-Configurar cuda
+Configure CUDA
 py -3.11 -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
