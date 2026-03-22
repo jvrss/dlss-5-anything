@@ -3,7 +3,17 @@ import os
 HF_TOKEN = os.environ.get("HF_TOKEN")
 
 import subprocess
-import spaces
+
+try:
+    import spaces
+except ImportError:
+    # Not running on HF Spaces — create a no-op decorator
+    class spaces:
+        @staticmethod
+        def GPU(duration=60):
+            def decorator(fn):
+                return fn
+            return decorator
 
 
 def apply_patch():
@@ -12,18 +22,39 @@ def apply_patch():
     site_packages = os.path.dirname(diffusers.__file__)
     patch_file = os.path.join(os.path.dirname(__file__), "flux2_klein_kv.patch")
 
-    if os.path.exists(patch_file):
-        result = subprocess.run(
-            ["patch", "-p2", "--forward", "--batch"],
-            cwd=os.path.dirname(site_packages),
-            stdin=open(patch_file),
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode == 0:
-            print("Patch applied successfully")
-        else:
-            print(f"Patch output: {result.stdout}\n{result.stderr}")
+    if not os.path.exists(patch_file):
+        return
+
+    # Try unix `patch` first, then `git apply` as Windows fallback
+    for cmd in (
+        ["patch", "-p2", "--forward", "--batch"],
+        ["git", "apply", "-p2", "--ignore-whitespace", "--whitespace=nowarn", patch_file],
+    ):
+        try:
+            if cmd[0] == "patch":
+                result = subprocess.run(
+                    cmd,
+                    cwd=os.path.dirname(site_packages),
+                    stdin=open(patch_file),
+                    capture_output=True,
+                    text=True,
+                )
+            else:
+                result = subprocess.run(
+                    cmd,
+                    cwd=os.path.dirname(site_packages),
+                    capture_output=True,
+                    text=True,
+                )
+            if result.returncode == 0:
+                print("Patch applied successfully")
+                return
+            else:
+                print(f"Patch attempt ({cmd[0]}) output: {result.stdout}\n{result.stderr}")
+        except FileNotFoundError:
+            continue  # command not available, try next
+
+    print("Warning: could not apply patch (patch/git not found). Continuing anyway.")
 
 
 apply_patch()
