@@ -1,4 +1,5 @@
 gradio
+rich
 accelerate
 diffusers
 huggingface_hub
