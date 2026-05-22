@@ -13,3 +13,6 @@ py -3.11 -m venv venv
 
 Configure CUDA
 py -3.11 -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+
+Needed Packages
+py -3.11 -m pip install accelerate transformers safetensors

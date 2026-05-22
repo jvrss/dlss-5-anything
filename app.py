@@ -77,7 +77,15 @@ print("Loading FLUX.2 Klein 9B KV model...")
 pipe = Flux2KleinKVPipeline.from_pretrained(MODEL_ID, torch_dtype=dtype, token=HF_TOKEN)
 # Offload model components to CPU between uses — keeps only the active layer on GPU,
 # dramatically reducing peak VRAM (important for 32 GB cards like the RTX 5090).
-pipe.enable_model_cpu_offload()
+if device == "cuda":
+    try:
+        pipe.enable_model_cpu_offload()
+        print("Model CPU offload enabled.")
+    except RuntimeError as e:
+        print(f"enable_model_cpu_offload failed ({e}), falling back to .to(device).")
+        pipe.to(device)
+else:
+    pipe.to(device)
 # Slice VAE decode/encode into chunks to cut VRAM spikes during image decode.
 # NOTE: enable_tiling() is intentionally omitted — it introduces seam artifacts at ≤1024 px.
 pipe.vae.enable_slicing()
