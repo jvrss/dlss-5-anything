@@ -407,6 +407,18 @@ css = """
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 #video-download { border: none !important; background: transparent !important; padding: 0 !important; }
+#export-btn {
+    background: #7c3aed !important;
+    color: white !important;
+    font-weight: bold;
+    font-size: 1em;
+    min-height: 50px;
+    font-family: 'Press Start 2P', monospace !important;
+    border: 2px solid #a78bfa !important;
+    box-shadow: 0 0 12px #7c3aed66;
+}
+#export-btn:hover { box-shadow: 0 0 25px #7c3aed; }
+#export-download { border: none !important; background: transparent !important; padding: 0 !important; }
 .dark { --body-background-fill: #0a0a0a; }
 """
 
@@ -496,21 +508,24 @@ with gr.Blocks(title="DLSS 5 Anything", css=css, theme=gr.themes.Base(
     video_btn = gr.Button("Generate & download video", elem_id="video-btn", visible=False)
     video_file = gr.File(visible=False, elem_id="video-download")
 
+    export_btn = gr.Button("Export enhanced image", elem_id="export-btn", visible=True)
+    export_file = gr.File(visible=False, elem_id="export-download")
+
     def on_generate(image, prompt, seed, randomize_seed, num_inference_steps, progress=gr.Progress(track_tqdm=True)):
         comparison, seed, orig, enh = process(image, prompt, seed, randomize_seed, num_inference_steps, progress)
-        return comparison, seed, orig, enh, gr.update(visible=True), gr.update(visible=False)
+        return comparison, seed, orig, enh, gr.update(visible=True), gr.update(visible=False), gr.update(visible=True), gr.update(visible=False)
 
     go_btn.click(
         fn=on_generate,
         inputs=[input_image, prompt, seed, randomize_seed, num_inference_steps],
-        outputs=[output_image, seed, original_state, enhanced_state, video_btn, video_file],
+        outputs=[output_image, seed, original_state, enhanced_state, video_btn, video_file, export_btn, export_file],
     )
 
     # Hide video button when input image changes
     input_image.change(
-        fn=lambda: (gr.update(visible=False), gr.update(visible=False), None, None),
+        fn=lambda: (gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), None, None),
         inputs=[],
-        outputs=[video_btn, video_file, original_state, enhanced_state],
+        outputs=[video_btn, video_file, export_btn, export_file, original_state, enhanced_state],
     )
 
     def make_video(orig, enh):
@@ -531,6 +546,19 @@ with gr.Blocks(title="DLSS 5 Anything", css=css, theme=gr.themes.Base(
         fn=lambda: gr.update(value="Generate & download video", interactive=True),
         inputs=[],
         outputs=[video_btn],
+    )
+
+    def export_enhanced(enh):
+        if enh is None:
+            raise gr.Error("Generate a DLSS 5 comparison first!")
+        path = tempfile.mktemp(suffix=".png")
+        enh.save(path, format="PNG")
+        return gr.update(value=path, visible=True)
+
+    export_btn.click(
+        fn=export_enhanced,
+        inputs=[enhanced_state],
+        outputs=[export_file],
     )
 
 demo.launch()
