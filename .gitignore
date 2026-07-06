@@ -8,3 +8,4 @@ venv
 frames_enhanced
 video
 *.mp4
+output/

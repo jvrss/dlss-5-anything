@@ -31,8 +31,7 @@ from pathlib import Path
 # ─── CLI ──────────────────────────────────────────────────────────────────────
 parser = argparse.ArgumentParser(description="Enhance every video frame with FLUX.2 Klein KV")
 parser.add_argument("--video",   default="video/ignition.mkv", help="Input video path")
-parser.add_argument("--output",  default="output_enhanced.mp4", help="Output video path")
-parser.add_argument("--frames",  default="frames_enhanced", help="Dir for enhanced JPEG frames")
+parser.add_argument("--output-dir", default="output", help="Base output directory (auto-creates subdir per video)")
 parser.add_argument("--steps",   type=int, default=4, help="Diffusion inference steps (default 4)")
 parser.add_argument("--seed",    type=int, default=42, help="Seed used for every frame in the run")
 parser.add_argument("--prompt",  default="make it more realistic", help="Prompt for FLUX model")
@@ -41,9 +40,13 @@ parser.add_argument("--no-audio", dest="no_audio", action="store_true", help="Di
 parser.add_argument("--resume",  action="store_true", default=True, help="Skip existing frames (default: on)")
 args = parser.parse_args()
 
-VIDEO_IN     = Path(args.video)
-OUTPUT_VIDEO = Path(args.output)
-ENHANCED_DIR = Path(args.frames)
+VIDEO_IN = Path(args.video)
+VIDEO_NAME = VIDEO_IN.stem  # video filename without extension
+OUTPUT_BASE_DIR = Path(args.output_dir)
+VIDEO_OUTPUT_DIR = OUTPUT_BASE_DIR / VIDEO_NAME  # output/video_name/
+ENHANCED_DIR = VIDEO_OUTPUT_DIR / "frames"
+OUTPUT_VIDEO = VIDEO_OUTPUT_DIR / f"{VIDEO_NAME}_enhanced.mp4"
+
 STEPS        = args.steps
 BASE_SEED    = args.seed
 PROMPT       = args.prompt
@@ -205,6 +208,8 @@ def main():
         console.print(f"[red]Input video not found: {VIDEO_IN}[/red]")
         sys.exit(1)
 
+    # Create output directory structure
+    VIDEO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     ENHANCED_DIR.mkdir(exist_ok=True)
 
     # ── header ──────────────────────────────────────────────────────────────
@@ -229,6 +234,7 @@ def main():
     info.add_column("", style="cyan bold", no_wrap=True)
     info.add_column("", style="white")
     info.add_row("Input",         str(VIDEO_IN))
+    info.add_row("Output dir",    str(VIDEO_OUTPUT_DIR))
     info.add_row("Source res",    f"{vw}x{vh}")
     info.add_row("Source FPS",    f"{fps:.2f}")
     info.add_row("Total frames",  str(total_frames))
@@ -239,9 +245,30 @@ def main():
     info.add_row("Steps",         str(STEPS))
     info.add_row("Seed",          str(BASE_SEED))
     info.add_row("Device",        device)
-    info.add_row("Output",        str(OUTPUT_VIDEO))
+    info.add_row("Output video",  str(OUTPUT_VIDEO))
     info.add_row("Frames dir",    str(ENHANCED_DIR))
     console.print(info)
+
+    # Save metadata to JSON
+    metadata = {
+        "video_name": VIDEO_NAME,
+        "input_video": str(VIDEO_IN),
+        "source_resolution": [vw, vh],
+        "fps": fps,
+        "total_frames": total_frames,
+        "has_audio": has_audio,
+        "output_resolution": [out_w, out_h],
+        "model": MODEL_ID,
+        "prompt": PROMPT,
+        "steps": STEPS,
+        "seed": BASE_SEED,
+        "quality": JPEG_QUALITY,
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    metadata_path = VIDEO_OUTPUT_DIR / "metadata.json"
+    with open(metadata_path, "w") as f:
+        json.dump(metadata, f, indent=2)
+    console.print(f"[dim]Metadata saved to {metadata_path}[/dim]")
 
     # ── check existing / resume ──────────────────────────────────────────────
     existing = {f.stem for f in ENHANCED_DIR.glob("frame_*.jpg")}
@@ -383,6 +410,27 @@ def main():
     console.print(Panel(summary, title="[bold bright_green]Run Summary[/bold bright_green]",
                         border_style="bright_green"))
 
+    # Save summary to JSON
+    summary_data = {
+        "video_name": VIDEO_NAME,
+        "frames_in_video": frame_idx,
+        "newly_enhanced": processed_count,
+        "skipped_frames": skipped_count,
+        "errors_count": len(errors),
+        "avg_time_per_frame": avg_all,
+        "peak_speed_fr_min": 60/min(frame_times) if frame_times else None,
+        "wall_time_minutes": total_wall/60,
+        "output_video": str(OUTPUT_VIDEO),
+        "completion_timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    if errors:
+        summary_data["failed_frame_indices"] = [e[0] for e in errors]
+    
+    summary_path = VIDEO_OUTPUT_DIR / "summary.json"
+    with open(summary_path, "w") as f:
+        json.dump(summary_data, f, indent=2)
+    console.print(f"[dim]Summary saved to {summary_path}[/dim]")
+
     if errors:
         console.print(f"[red]Failed frame indices: {[e[0] for e in errors]}[/red]")
 
@@ -400,6 +448,11 @@ def main():
         console.print("[yellow]No enhanced frames found — skipping reassembly.[/yellow]")
 
     console.rule("[bold bright_green]All done![/bold bright_green]")
+    console.print(f"\n[bold green]✓ Output saved to:[/bold green]")
+    console.print(f"  [cyan]Video:[/cyan] {OUTPUT_VIDEO}")
+    console.print(f"  [cyan]Frames:[/cyan] {ENHANCED_DIR}")
+    console.print(f"  [cyan]Metadata:[/cyan] {VIDEO_OUTPUT_DIR / 'metadata.json'}")
+    console.print(f"  [cyan]Summary:[/cyan] {VIDEO_OUTPUT_DIR / 'summary.json'}")
 
 
 if __name__ == "__main__":
