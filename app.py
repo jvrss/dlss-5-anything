@@ -223,7 +223,15 @@ def process(
 import tempfile
 
 
-def create_slider_video(original, enhanced, fps=30, pause_duration=0.8, slide_duration=3.0, hold_duration=1.0):
+def create_slider_video(
+    original,
+    enhanced,
+    fps=30,
+    pause_duration=0.8,
+    slide_duration=3.0,
+    hold_duration=1.0,
+    seed=None,
+):
     """Create a DLSS 5 slider comparison video from raw original + enhanced images."""
     w, h = original.size
     if w % 2: w -= 1
@@ -279,7 +287,11 @@ def create_slider_video(original, enhanced, fps=30, pause_duration=0.8, slide_du
     enh_arr = np.array(enhanced.convert("RGB"))
 
     # Pipe raw frames directly to ffmpeg (no disk I/O)
-    output_path = tempfile.mktemp(suffix=".mp4")
+    if seed is None:
+        output_path = tempfile.mktemp(suffix=".mp4")
+    else:
+        fd, output_path = tempfile.mkstemp(prefix=f"dlss5_seed_{seed}_", suffix=".mp4")
+        os.close(fd)
     ffmpeg_proc = subprocess.Popen([
         "ffmpeg", "-y",
         "-f", "rawvideo", "-vcodec", "rawvideo",
@@ -504,6 +516,7 @@ with gr.Blocks(title="DLSS 5 Anything", css=css, theme=gr.themes.Base(
     # Hidden state for video generation
     original_state = gr.State(None)
     enhanced_state = gr.State(None)
+    generated_seed_state = gr.State(None)
 
     video_btn = gr.Button("Generate & download video", elem_id="video-btn", visible=False)
     video_file = gr.File(visible=False, elem_id="video-download")
@@ -513,25 +526,25 @@ with gr.Blocks(title="DLSS 5 Anything", css=css, theme=gr.themes.Base(
 
     def on_generate(image, prompt, seed, randomize_seed, num_inference_steps, progress=gr.Progress(track_tqdm=True)):
         comparison, seed, orig, enh = process(image, prompt, seed, randomize_seed, num_inference_steps, progress)
-        return comparison, seed, orig, enh, gr.update(visible=True), gr.update(visible=False), gr.update(visible=True), gr.update(visible=False)
+        return comparison, seed, orig, enh, seed, gr.update(visible=True), gr.update(visible=False), gr.update(visible=True), gr.update(visible=False)
 
     go_btn.click(
         fn=on_generate,
         inputs=[input_image, prompt, seed, randomize_seed, num_inference_steps],
-        outputs=[output_image, seed, original_state, enhanced_state, video_btn, video_file, export_btn, export_file],
+        outputs=[output_image, seed, original_state, enhanced_state, generated_seed_state, video_btn, video_file, export_btn, export_file],
     )
 
     # Hide video button when input image changes
     input_image.change(
-        fn=lambda: (gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), None, None),
+        fn=lambda: (gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), None, None, None),
         inputs=[],
-        outputs=[video_btn, video_file, export_btn, export_file, original_state, enhanced_state],
+        outputs=[video_btn, video_file, export_btn, export_file, original_state, enhanced_state, generated_seed_state],
     )
 
-    def make_video(orig, enh):
+    def make_video(orig, enh, seed_value):
         if orig is None or enh is None:
             raise gr.Error("Generate a DLSS 5 comparison first!")
-        path = create_slider_video(orig, enh)
+        path = create_slider_video(orig, enh, seed=seed_value)
         return gr.update(value=path, visible=True)
 
     video_btn.click(
@@ -540,7 +553,7 @@ with gr.Blocks(title="DLSS 5 Anything", css=css, theme=gr.themes.Base(
         outputs=[video_btn],
     ).then(
         fn=make_video,
-        inputs=[original_state, enhanced_state],
+        inputs=[original_state, enhanced_state, generated_seed_state],
         outputs=[video_file],
     ).then(
         fn=lambda: gr.update(value="Generate & download video", interactive=True),

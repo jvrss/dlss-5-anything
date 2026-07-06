@@ -12,7 +12,7 @@ Features
 • Streams raw frames from ffmpeg — no massive raw-frame dump to disk
 • Saves enhanced frames as JPEG (quality 95) for resume support
 • Resume: already-processed frames are detected and skipped automatically
-• Per-frame seed (SEED + frame_index) for full reproducibility across runs
+• Fixed seed per run for reproducibility across runs
 • Rich progress bars, live stats panel, per-milestone console logs
 • Graceful Ctrl-C: saves progress, shows summary, then exits cleanly
 • Reassembles final video (libx264) with original audio track
@@ -34,7 +34,7 @@ parser.add_argument("--video",   default="video/ignition.mkv", help="Input video
 parser.add_argument("--output",  default="output_enhanced.mp4", help="Output video path")
 parser.add_argument("--frames",  default="frames_enhanced", help="Dir for enhanced JPEG frames")
 parser.add_argument("--steps",   type=int, default=4, help="Diffusion inference steps (default 4)")
-parser.add_argument("--seed",    type=int, default=42, help="Base seed (frame_seed = seed + frame_idx)")
+parser.add_argument("--seed",    type=int, default=42, help="Seed used for every frame in the run")
 parser.add_argument("--prompt",  default="make it more realistic", help="Prompt for FLUX model")
 parser.add_argument("--quality", type=int, default=95, help="JPEG quality for saved frames (1-95)")
 parser.add_argument("--no-audio", dest="no_audio", action="store_true", help="Discard audio track")
@@ -237,7 +237,7 @@ def main():
     info.add_row("Model",         MODEL_ID)
     info.add_row("Prompt",        PROMPT)
     info.add_row("Steps",         str(STEPS))
-    info.add_row("Base seed",     str(BASE_SEED))
+    info.add_row("Seed",          str(BASE_SEED))
     info.add_row("Device",        device)
     info.add_row("Output",        str(OUTPUT_VIDEO))
     info.add_row("Frames dir",    str(ENHANCED_DIR))
@@ -324,7 +324,7 @@ def main():
             try:
                 arr = np.frombuffer(raw, dtype=np.uint8).reshape(vh, vw, 3)
                 img = Image.fromarray(arr)
-                result = enhance_frame(pipe, img, seed=BASE_SEED + frame_idx)
+                result = enhance_frame(pipe, img, seed=BASE_SEED)
                 result.save(out_path, format="JPEG", quality=JPEG_QUALITY)
                 processed_count += 1
             except Exception as exc:
@@ -404,4 +404,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

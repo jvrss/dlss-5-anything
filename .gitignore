@@ -7,3 +7,4 @@ __pycache__/
 venv
 frames_enhanced
 video
+*.mp4
